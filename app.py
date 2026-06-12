@@ -27,8 +27,8 @@ HEAT_FILE_CANDIDATES = [
     "data/heat_illness.xlsx",
 ]
 
-DISTRICT_GEOJSON_PATH = "data/seoul_district_boundary_simplified.geojson"
-DONG_GEOJSON_PATH = "data/seoul_adm_dong_simplified.geojson"
+DISTRICT_GEOJSON_PATH = "seoul_district_boundary_simplified.geojson"
+DONG_GEOJSON_PATH = "seoul_adm_dong_simplified.geojson"
 
 GEOJSON_DISTRICT_COL = "district"
 GEOJSON_DONG_DISTRICT_COL = "district"
