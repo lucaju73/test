@@ -11,7 +11,7 @@ st.set_page_config(page_title="지도 테스트", layout="wide")
 st.title("서울시 자치구 개선 우선순위 지도 테스트")
 
 DB_PATH = "final.db"
-GEOJSON_PATH = "data/seoul_district_boundary_simplified.geojson"
+GEOJSON_PATH = "seoul_district_boundary_simplified.geojson"
 
 # -----------------------------
 # DB 확인
