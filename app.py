@@ -1,62 +1,65 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
+import os
 
-st.set_page_config(page_title="산점도 TOP5 테스트", layout="wide")
+st.set_page_config(page_title="온열질환 CSV 테스트", layout="wide")
 
-st.title("수요-공급 불균형 산점도 + 개선 우선지역 TOP5 테스트")
+st.title("온열질환 CSV 파일 테스트")
 
-DB_PATH = "final.db"
+FILE_PATH = "heat_illness.csv"
 
-conn = sqlite3.connect(DB_PATH)
+st.write("현재 폴더 파일 목록")
+st.write(os.listdir("."))
 
-df = pd.read_sql_query("""
-SELECT
-    district,
-    elderly_total,
-    shelter_count,
-    total_capacity,
-    shelters_per_1000,
-    elderly_per_shelter,
-    capacity_rate,
-    elderly_80_plus_rate,
-    vulnerable_elderly_rate,
-    priority_type,
-    priority_score
-FROM district_priority
-""", conn)
+if not os.path.exists(FILE_PATH):
+    st.error("heat_illness.csv 파일이 없습니다. app.py와 같은 폴더에 넣어주세요.")
+    st.stop()
 
-conn.close()
+st.success("heat_illness.csv 파일 찾음")
 
-st.success("DB 데이터 불러오기 성공")
+df = pd.read_csv(FILE_PATH)
 
-st.subheader("1. 수요-공급 불균형 산점도")
+st.subheader("데이터 미리보기")
+st.dataframe(df.head(), use_container_width=True)
 
-scatter_df = df.set_index("district")[["elderly_total", "capacity_rate"]]
+st.subheader("컬럼 목록")
+st.write(df.columns.tolist())
 
-st.scatter_chart(scatter_df)
+st.subheader("행 개수")
+st.write(len(df))
 
-st.caption(
-    "x축은 독거노인 수, y축은 쉼터 수용률입니다. "
-    "오른쪽 아래에 가까운 지역은 독거노인은 많지만 수용률이 낮아 우선 점검이 필요한 지역입니다."
-)
+if "occur_date" in df.columns:
+    df["occur_date"] = pd.to_datetime(df["occur_date"], errors="coerce")
+    df["year"] = df["occur_date"].dt.year
 
-st.divider()
+    yearly = df.groupby("year").size().reset_index(name="count")
+    st.subheader("연도별 온열질환 발생 건수")
+    st.line_chart(yearly.set_index("year"))
 
-st.subheader("2. 개선 우선지역 TOP 5")
+if "age" in df.columns:
+    df["age"] = pd.to_numeric(df["age"], errors="coerce")
 
-top5 = df.sort_values(
-    by=["priority_score", "shelters_per_1000", "capacity_rate", "elderly_total"],
-    ascending=[False, True, True, False]
-).head(5)
+    def age_group(age):
+        if pd.isna(age):
+            return "미상"
+        elif age < 20:
+            return "0~19세"
+        elif age < 40:
+            return "20~39세"
+        elif age < 65:
+            return "40~64세"
+        elif age < 80:
+            return "65~79세"
+        else:
+            return "80세 이상"
 
-st.dataframe(top5, use_container_width=True)
+    df["age_group"] = df["age"].apply(age_group)
 
-st.subheader("3. TOP5 우선순위 점수")
+    age_counts = df["age_group"].value_counts().reindex(
+        ["0~19세", "20~39세", "40~64세", "65~79세", "80세 이상", "미상"]
+    ).dropna()
 
-score_df = top5.set_index("district")[["priority_score"]]
-st.bar_chart(score_df)
+    st.subheader("연령대별 온열질환 발생 건수")
+    st.bar_chart(age_counts)
 
-st.caption(
-    "priority_score가 높을수록 독거노인 규모, 수용률 부족, 쉼터 공급밀도 부족 등 여러 취약 요인이 동시에 나타난 지역입니다."
-)
+st.success("온열질환 CSV 테스트 완료")
