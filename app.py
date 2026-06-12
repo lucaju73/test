@@ -1,109 +1,62 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-import json
-import os
-import folium
-from streamlit_folium import st_folium
 
-st.set_page_config(page_title="지도 테스트", layout="wide")
+st.set_page_config(page_title="산점도 TOP5 테스트", layout="wide")
 
-st.title("서울시 자치구 개선 우선순위 지도 테스트")
+st.title("수요-공급 불균형 산점도 + 개선 우선지역 TOP5 테스트")
 
 DB_PATH = "final.db"
-GEOJSON_PATH = "seoul_district_boundary_simplified.geojson"
 
-# -----------------------------
-# DB 확인
-# -----------------------------
-if not os.path.exists(DB_PATH):
-    st.error("final.db 파일이 없습니다.")
-    st.stop()
-
-if not os.path.exists(GEOJSON_PATH):
-    st.error("GeoJSON 파일이 없습니다.")
-    st.stop()
-
-st.success("DB와 GeoJSON 파일 찾기 성공")
-
-# -----------------------------
-# DB 연결
-# -----------------------------
 conn = sqlite3.connect(DB_PATH)
 
-query = """
+df = pd.read_sql_query("""
 SELECT
     district,
-    priority_type,
-    priority_score,
     elderly_total,
     shelter_count,
+    total_capacity,
+    shelters_per_1000,
+    elderly_per_shelter,
     capacity_rate,
-    shelters_per_1000
+    elderly_80_plus_rate,
+    vulnerable_elderly_rate,
+    priority_type,
+    priority_score
 FROM district_priority
-"""
+""", conn)
 
-df = pd.read_sql_query(query, conn)
 conn.close()
 
-st.subheader("district_priority 미리보기")
-st.dataframe(df.head())
+st.success("DB 데이터 불러오기 성공")
 
-# -----------------------------
-# GeoJSON 읽기
-# -----------------------------
-with open(GEOJSON_PATH, "r", encoding="utf-8") as f:
-    geojson_data = json.load(f)
+st.subheader("1. 수요-공급 불균형 산점도")
 
-st.success("GeoJSON 읽기 성공")
+scatter_df = df.set_index("district")[["elderly_total", "capacity_rate"]]
 
-# -----------------------------
-# 서울 중심 지도
-# -----------------------------
-m = folium.Map(
-    location=[37.5665, 126.9780],
-    zoom_start=10,
-    tiles="cartodbpositron"
+st.scatter_chart(scatter_df)
+
+st.caption(
+    "x축은 독거노인 수, y축은 쉼터 수용률입니다. "
+    "오른쪽 아래에 가까운 지역은 독거노인은 많지만 수용률이 낮아 우선 점검이 필요한 지역입니다."
 )
 
-# -----------------------------
-# Choropleth 지도
-# -----------------------------
-folium.Choropleth(
-    geo_data=geojson_data,
-    data=df,
-    columns=["district", "priority_score"],
-    key_on="feature.properties.district",
-    fill_color="OrRd",
-    fill_opacity=0.7,
-    line_opacity=0.4,
-    legend_name="개선 우선순위 점수"
-).add_to(m)
+st.divider()
 
-# -----------------------------
-# Tooltip 추가
-# -----------------------------
-tooltip = folium.GeoJsonTooltip(
-    fields=["district"],
-    aliases=["자치구:"],
-    localize=True
+st.subheader("2. 개선 우선지역 TOP 5")
+
+top5 = df.sort_values(
+    by=["priority_score", "shelters_per_1000", "capacity_rate", "elderly_total"],
+    ascending=[False, True, True, False]
+).head(5)
+
+st.dataframe(top5, use_container_width=True)
+
+st.subheader("3. TOP5 우선순위 점수")
+
+score_df = top5.set_index("district")[["priority_score"]]
+st.bar_chart(score_df)
+
+st.caption(
+    "priority_score가 높을수록 독거노인 규모, 수용률 부족, 쉼터 공급밀도 부족 등 여러 취약 요인이 동시에 나타난 지역입니다."
 )
-
-folium.GeoJson(
-    geojson_data,
-    tooltip=tooltip,
-    style_function=lambda x: {
-        "fillOpacity": 0,
-        "color": "black",
-        "weight": 1
-    }
-).add_to(m)
-
-# -----------------------------
-# 지도 출력
-# -----------------------------
-st.subheader("서울시 자치구별 개선 우선순위 지도")
-
-st_folium(m, width=1000, height=600)
-
-st.success("지도 렌더링 성공")
